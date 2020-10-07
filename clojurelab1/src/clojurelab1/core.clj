@@ -36,7 +36,7 @@
   (let [initial-alph (recur-n-times '() 1 alphabet)]
     (if (= n 1)
       initial-alph
-      (to-strings (recur-n-times initial-alph (dec n) alphabet)))))
+      (recur-n-times initial-alph (dec n) alphabet))))
 
 (defn -main [& args]
   (println (generate '("a" (:b 1) ['c 'd]) 2))

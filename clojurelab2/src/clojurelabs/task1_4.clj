@@ -1,4 +1,4 @@
-(ns clojurelabs.task4)
+(ns clojurelabs.task1_4)
 
 (defn exclude-repeated [symbol items]
   (filter (fn [it] (not= symbol (first it))) items))

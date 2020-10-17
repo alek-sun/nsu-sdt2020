@@ -1,4 +1,4 @@
-(ns clojurelab2.task3)
+(ns clojurelabs.task1_3)
 
 (defn my-map [fun coll]
   (reduce (fn [last-result it] (concat last-result [(fun it)])) (conj coll []))

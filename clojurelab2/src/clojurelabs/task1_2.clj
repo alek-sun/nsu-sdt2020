@@ -1,4 +1,4 @@
-(ns clojurelab2.task2)
+(ns clojurelabs.task1_2)
 
 (defn item-alph-tail
   "concatenate all alphabet symbols with item, if symbol non-equal with item's first symbol"
@@ -34,10 +34,11 @@
 
 (defn generate [alphabet n]
   (let [initial-alph '(())]
-    (if (= n 1)
+    (if (= n 0)
       initial-alph
       (recur-n-times initial-alph n alphabet))))
 
 (defn -main [& args]
   (println (generate '("a" (:b 1) ['c 'd]) 3))
+  (println (generate '("a" "b" "c") 3))
   )

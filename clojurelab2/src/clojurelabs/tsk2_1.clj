@@ -3,7 +3,7 @@
 
 (defn trapeze-area
   [fx1 fx2 h]
-  (float (* h (/ (+ fx1 fx2) 2)))
+  (* h (/ (+ fx1 fx2) 2.0))
   )
 
 (defn increment-one-step [fun step n-step mem-increment-one-step]
@@ -27,13 +27,13 @@
   (< (Math/abs ^float (- real expected)) 0.0000001)
   )
 
-(deftest segment-area-test
+(deftest trapeze-area-test
   (is (= (trapeze-area 10 6 2) 16.0))
   (is (= (trapeze-area 5 4 0.5) 2.25))
   (is (= (trapeze-area 15.7 4 2.5) 24.625))
   )
 
-(deftest integrate-test
+(deftest increment-one-test
   (is (little-diff (increment-one-step (fn [x] x) 0.1 20 increment-one-step) 2.0))
   (is (little-diff (increment-one-step (fn [x] x) 0.2 10 increment-one-step) 2.0))
   )
@@ -77,8 +77,8 @@
     (time (mem-integrate 2.3))
     )
 
-  (segment-area-test)
-  (integrate-test)
+  (trapeze-area-test)
+  (increment-one-test)
   (memoized-test)
   )
 

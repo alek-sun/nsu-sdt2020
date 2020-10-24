@@ -19,7 +19,11 @@
 
 (defn memoized [fun step]
   (let [memoization (memoize increment-one-step)]
-    (fn [x] (increment-one-step fun step (int (/ x step)) memoization))
+    (fn [x]
+      (let [rest (mod x step)]
+        (increment-one-step fun step (int (/ (- x rest) step)) memoization)
+        )
+      )
     )
   )
 

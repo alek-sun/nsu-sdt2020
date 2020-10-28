@@ -60,7 +60,7 @@
     (time (mem-integrate 2))
     (time (mem-integrate 2))
     (time (mem-integrate 2))
-    (println)
+    (println (mem-integrate 2))
     (println "compute nothing 0--1")
     (time (mem-integrate 1))
     (time (mem-integrate 1))

@@ -28,19 +28,31 @@
   (< (Math/abs ^float (- real expected)) 0.0000001)
   )
 
+(deftest trapeze-area-test
+  (is (= (trapeze-area (fn [x] x) 3 6) 13.5))
+  (is (= (trapeze-area (fn [x] 1) 1 5) 4.0))
+  )
+
+(deftest integrate-test
+  (let [step 0.5
+        result (integrate (fn [x] x) step)]
+    (is (little-diff (result 3) 4.5))
+    (is (little-diff (result 6) 18.0))
+    (is (little-diff (result 9) 40.5))
+    )
+  )
+
 (defn -main
   []
   (let [step 0.05
         integrator (integrate (fn [x] x) step)]
     (time (integrator 200))
     (time (integrator 201))
+    (time (integrator 201))
     (time (integrator 199))
-    ;(time (integrate (fn [x] x) step 200))
-    ;(time (integrate (fn [x] x) step 200))
-    ;(time (integrate (fn [x] x) step 199))
-    ;(time (integrate (fn [x] x) step 1.5))
-    ;(time (integrate (fn [x] x) step 3.7))
-    ;(println (integrate (fn [x] x) step 2))
-    ;(println (integrate (fn [x] x) 7 9))
+    (time (integrator 199))
     )
+
+  (trapeze-area-test)
+  (integrate-test)
   )

@@ -39,5 +39,6 @@
       (recur-n-times initial-alph (dec n) alphabet))))
 
 (defn -main [& args]
+  "for mock commit"
   (println (generate '("a" (:b 1) ['c 'd]) 2))
   (println (generate '("a" "b" "c" "d") 1)))

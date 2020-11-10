@@ -9,6 +9,7 @@
   )
 
 (defn -main [& args]
+  "for mock commit"
   (println (my-map dec '(1 2 3 4 5 6)))
   (println (my-filter (fn [x]
                         (= (mod x 2) 0)) '(1 2 3 4 5 6)))

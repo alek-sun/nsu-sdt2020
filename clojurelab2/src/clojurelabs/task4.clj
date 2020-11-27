@@ -84,24 +84,23 @@
             variable?)
    expr))
 
+; Step 1: Translation to base items by translation table
 
 (defn translate-by-table
   [expr table & vars]
   (if-let [transform
-            (some
-              (fn [[_ rule]]
-                (if ((first rule) expr)
-                  (second rule)
-                  false
-                  )
-                )
-              (map-indexed list table))]
+           (some
+             (fn [[_ rule]]
+               (if ((first rule) expr)
+                 (second rule)
+                 false
+                 )
+               )
+             (map-indexed list table))]
     (transform expr vars)
     )
   )
 
-
-; Step 1: Translation to base items by translation table
 (declare table)
 
 (defn recur-trans
@@ -134,3 +133,39 @@
     )
   )
 
+; Step 2: Provide inversion
+
+(declare recur-provide-inversion)
+
+(def provide-inversion-table
+  (list
+    [(fn [expr] (invert? expr)
+       (fn [expr [to-be-inverted]] (let [[arg] (args expr)]
+                                     (recur-provide-inversion arg (not to-be-inverted)))))]
+
+    [(fn [expr] (is-atom? expr))
+     (fn [expr [to-be-inverted]] (if to-be-inverted
+                                   (invert expr)
+                                   expr))]
+
+    [(fn [expr] (conjunction? expr))
+     (fn [expr [to-be-inverted]] (let [[arg1 arg2] (args expr)
+                                       inverted (if to-be-inverted disjunction conjunction)]
+                                   (inverted (recur-provide-inversion arg1 to-be-inverted)
+                                       (recur-provide-inversion arg2 to-be-inverted))))]
+
+    [(fn [expr] (disjunction? expr))
+     (fn [expr [to-be-inverted]] (let [[arg1 arg2] (args expr)
+                                       inverted (if to-be-inverted conjunction disjunction)]
+                                   (inverted (recur-provide-inversion arg1 to-be-inverted)
+                                       (recur-provide-inversion arg2 to-be-inverted))))]
+    )
+  )
+
+(defn recur-provide-inversion
+  [expr to-be-inverted]
+  (translate-by-table expr provide-inversion-table to-be-inverted))
+
+(defn provide-inversion-to-atoms
+  [expr]
+  (recur-provide-inversion expr false))                     ; by default it's not necessity of inversion

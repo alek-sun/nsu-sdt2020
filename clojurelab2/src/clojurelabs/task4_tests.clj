@@ -12,11 +12,11 @@
 (test/deftest variables-test
   (test/testing "Variables test"
     (let [var (logic/variable :name)]
-    (test/is (logic/variable? var))
-    (test/is (logic/equal-var? var var))
-    (test/is (= :name (logic/var-name var)))
-    (test/is (not (logic/equal-var? var (logic/variable :other))))
-    )
+      (test/is (logic/variable? var))
+      (test/is (logic/equal-var? var var))
+      (test/is (= :name (logic/var-name var)))
+      (test/is (not (logic/equal-var? var (logic/variable :other))))
+      )
     ))
 
 (test/deftest operators-test
@@ -47,31 +47,47 @@
         var2 (logic/variable :other)
         c-true (logic/constant true)]
 
-      (let [res1 (logic/recur-trans c-true)]
-        (test/is (= res1 c-true)))
+    (let [res1 (logic/recur-trans c-true)]
+      (test/is (= res1 c-true)))
 
-      (let [c1 (logic/conjunction var1 var2)
-            c2 (logic/conjunction var1 c-true)
-            res1 (logic/recur-trans c1)
-            res2 (logic/recur-trans c2)]
-        (test/is (= res1 c1))
-        (test/is (= res2 c2)))
+    (let [c1 (logic/conjunction var1 var2)
+          c2 (logic/conjunction var1 c-true)
+          res1 (logic/recur-trans c1)
+          res2 (logic/recur-trans c2)]
+      (test/is (= res1 c1))
+      (test/is (= res2 c2)))
 
-      (let [inv1 (logic/invert c-true)
-            inv2 (logic/invert var1)
+    (let [inv1 (logic/invert c-true)
+          inv2 (logic/invert var1)
 
-            res1 (logic/recur-trans inv1)
-            res2 (logic/recur-trans inv2)]
-        (test/is (= res1 inv1))
-        (test/is (= res2 inv2)))
+          res1 (logic/recur-trans inv1)
+          res2 (logic/recur-trans inv2)]
+      (test/is (= res1 inv1))
+      (test/is (= res2 inv2)))
 
-      ; var1 -> var2 == !var1 ^ var2
-        (let [impl (logic/implication var1 var2)
-              res (logic/recur-trans impl)
-              [arg1 arg2] (logic/args res)]
-          (test/is (logic/disjunction? res))
-          (test/is (= arg1 (logic/invert var1)))
-          (test/is (= arg2 var2)))
-      ))
+    ; var1 -> var2 == !var1 ^ var2
+    (let [impl (logic/implication var1 var2)
+          res (logic/recur-trans impl)
+          [arg1 arg2] (logic/args res)]
+      (test/is (logic/disjunction? res))
+      (test/is (= arg1 (logic/invert var1)))
+      (test/is (= arg2 var2)))
+    ))
+
+(test/deftest test-provide-inversion-to-atoms
+  (let [var1 (logic/variable :name)
+        var2 (logic/variable :other)]
+
+    ; !(var1 v var2) == (!var1 ^ !var2)
+    (test/is (=
+               (logic/provide-inversion-to-atoms
+                 (logic/invert
+                   (logic/conjunction var1 var2))
+                 )
+               (logic/disjunction
+                 (logic/invert var1)
+                 (logic/invert var2))))
+    ))
+
 
 (test/run-tests 'clojurelabs.task4-tests)

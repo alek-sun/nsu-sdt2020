@@ -86,16 +86,19 @@
 
 
 (defn translate-by-table
-  [expr table & args]
-  (if-some [[transform]
+  [expr table & vars]
+  (if-let [transform
             (some
-              (fn [[i rule]]
+              (fn [[_ rule]]
                 (if ((first rule) expr)
-                  [(second rule) i]
-                  false))
+                  (second rule)
+                  false
+                  )
+                )
               (map-indexed list table))]
-    (transform expr args)
-    ))
+    (transform expr vars)
+    )
+  )
 
 
 ; Step 1: Translation to base items by translation table

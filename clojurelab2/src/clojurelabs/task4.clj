@@ -2,7 +2,7 @@
 
 ; Define constants
 
-(defn constant [value]
+(defn const [value]
   {:pre [(boolean? value)]}
   (list ::const value))
 
@@ -11,8 +11,6 @@
 
 (defn constant-value [const]
   (second const))
-
-
 
 ; Define variables, it's names, equality
 
@@ -32,7 +30,6 @@
     (var-name var1)
     (var-name var2)
     ))
-
 
 ; Conjunction
 
@@ -84,7 +81,18 @@
             variable?)
    expr))
 
-; Step 1: Translation to base items by translation table
+(defn operation? [expr]
+  ((some-fn conjunction?
+            disjunction?
+            invert?)
+   expr))
+
+(defn operation [expr]
+  (when (operation? expr)
+    (cond
+      (conjunction? expr) conjunction
+      (disjunction? expr) disjunction
+      (invert? expr) invert)))
 
 (defn translate-by-table
   [expr table & vars]
@@ -139,10 +147,6 @@
 
 (def provide-inversion-table
   (list
-    [(fn [expr] (invert? expr)
-       (fn [expr [to-be-inverted]] (let [[arg] (args expr)]
-                                     (recur-provide-inversion arg (not to-be-inverted)))))]
-
     [(fn [expr] (is-atom? expr))
      (fn [expr [to-be-inverted]] (if to-be-inverted
                                    (invert expr)
@@ -152,15 +156,17 @@
      (fn [expr [to-be-inverted]] (let [[arg1 arg2] (args expr)
                                        inverted (if to-be-inverted disjunction conjunction)]
                                    (inverted (recur-provide-inversion arg1 to-be-inverted)
-                                       (recur-provide-inversion arg2 to-be-inverted))))]
+                                             (recur-provide-inversion arg2 to-be-inverted))))]
 
     [(fn [expr] (disjunction? expr))
      (fn [expr [to-be-inverted]] (let [[arg1 arg2] (args expr)
                                        inverted (if to-be-inverted conjunction disjunction)]
                                    (inverted (recur-provide-inversion arg1 to-be-inverted)
-                                       (recur-provide-inversion arg2 to-be-inverted))))]
-    )
-  )
+                                             (recur-provide-inversion arg2 to-be-inverted))))]
+
+    [(fn [expr] (invert? expr))
+     (fn [expr [to-be-inverted]] (let [[arg] (args expr)]
+                                   (recur-provide-inversion arg (not to-be-inverted))))]))
 
 (defn recur-provide-inversion
   [expr to-be-inverted]
@@ -168,4 +174,183 @@
 
 (defn provide-inversion-to-atoms
   [expr]
-  (recur-provide-inversion expr false))                     ; by default it's not necessity of inversion
+  (recur-provide-inversion expr false))
+
+; Step 3: Distribution rules
+(declare recur-distribution)
+
+(def distribution-table
+  (list
+    [(fn [expr]
+       (or
+         (is-atom? expr)
+         (and (invert? expr)
+              (if-let [[arg] (args expr)]
+                (is-atom? arg)
+                false)
+              ))
+       )
+     (fn [expr _] expr)]
+
+    ; (x v y) ^ z => (x ^ z) v (y ^ z)
+    [(fn [expr] (and (conjunction? expr)
+                     (disjunction? (first (args expr)))))
+     (fn [expr _] (let [[x-disjunction-y z] (args expr)
+                        [x y] (args x-disjunction-y)]
+                    (disjunction (conjunction (recur-distribution x)
+                                              (recur-distribution z))
+                                 (conjunction (recur-distribution y)
+                                              (recur-distribution z)))))]
+
+    ;x ^ (y v z) => (x ^ y) v (x ^ z)
+    [(fn [expr] (and (conjunction? expr)
+                     (disjunction? (second (args expr)))))
+     (fn [expr _] (let [[x y-disjunction-z] (args expr)
+                        [y z] (args y-disjunction-z)]
+                    (disjunction (conjunction (recur-distribution x)
+                                              (recur-distribution y))
+                                 (conjunction (recur-distribution x)
+                                              (recur-distribution z)))))]
+
+    [(fn [expr] (disjunction? expr))
+     (fn [expr _] (let [[arg1 arg2] (args expr)]
+                    (disjunction (recur-distribution arg1)
+                                 (recur-distribution arg2))))]
+
+    [(fn [expr] (conjunction? expr))
+     (fn [expr _] (let [[arg1 arg2] (args expr)]
+                    (conjunction (recur-distribution arg1)
+                                 (recur-distribution arg2))))]))
+
+(defn recur-distribution
+  [expr]
+  (translate-by-table expr distribution-table))
+
+
+; signify vars
+(declare vars-to-values)
+
+(def sign-table
+  (list
+    [(fn [expr] (constant? expr))
+     (fn [expr _] expr)]
+
+    [(fn [expr] (variable? expr))
+     (fn [expr [var val]] (if (equal-var? expr var)
+                            (const val)
+                            expr))]
+
+    [(fn [expr] (conjunction? expr))
+     (fn [expr [var val]] (let [[arg1 arg2] (args expr)]
+                            (conjunction (vars-to-values arg1 var val)
+                                         (vars-to-values arg2 var val))))]
+
+    [(fn [expr] (disjunction? expr))
+     (fn [expr [var val]] (let [[arg1 arg2] (args expr)]
+                            (disjunction (vars-to-values arg1 var val)
+                                         (vars-to-values arg2 var val))))]
+
+    [(fn [expr] (invert? expr))
+     (fn [expr [var val]] (let [[arg] (args expr)]
+                            (invert (vars-to-values arg var val))))]))
+
+(defn vars-to-values
+  [expr var val]
+  (translate-by-table expr sign-table var val))
+
+(defn equal-expect-inv [e1 e2]
+  (and (invert? e1)
+       (let [[arg] (args e1)]
+         (= arg e2))))
+
+; Step 4: simplifying
+(declare simplify)
+
+(def simplify-table
+  (list
+    ; arg1 ^ arg1 == arg1
+    [(fn [expr] (and (conjunction? expr)
+                     (let [[arg1 arg2] (args expr)]
+                       (= arg1 arg2))))
+     (fn [expr _] (simplify (first (args expr))))]
+
+    ; arg1 v arg1 == arg1
+    [(fn [expr] (and (disjunction? expr)
+                     (let [[arg1 arg2] (args expr)]
+                       (= arg1 arg2))))
+     (fn [expr _] (simplify (first (args expr))))]
+
+    ; arg1 ^ false == false
+    [(fn [expr] (and (conjunction? expr)
+                     (let [[arg1 arg2] (args expr)]
+                       (or (= arg1 (const false))
+                           (= arg2 (const false))))))
+     (fn [_ _] (const false))]
+
+    ; arg1 ^ true == arg1
+    [(fn [expr] (and (conjunction? expr)
+                     (let [[arg1 arg2] (args expr)]
+                       (or (= arg1 (const true))
+                           (= arg2 (const true))))))
+     (fn [expr _] (let [[arg1 arg2] (args expr)]
+                    (simplify (if (= arg1 (const true)) arg2 arg1))))]
+
+    ; arg1 v false == arg1
+    [(fn [expr] (and (disjunction? expr)
+                     (let [[arg1 arg2] (args expr)]
+                       (or (= arg1 (const false))
+                           (= arg2 (const false))))))
+     (fn [expr _] (let [[arg1 arg2] (args expr)]
+                    (simplify (if (= arg1 (const false)) arg2 arg1))))]
+
+    ; arg1 v true == true
+    [(fn [expr] (and (disjunction? expr)
+                     (let [[arg1 arg2] (args expr)]
+                       (or (= arg1 (const true))
+                           (= arg2 (const true))))))
+     (fn [_ _] (const true))]
+
+    ; arg1 ^ !arg1 / !arg1 ^ arg1 == false
+    [(fn [expr] (and (conjunction? expr)
+                     (let [[arg1 arg2] (args expr)]
+                       (or (equal-expect-inv arg1 arg2)
+                           (equal-expect-inv arg2 arg1)))))
+     (fn [_ _] (const false))]
+
+    ; arg1 v !arg1 == true
+    [(fn [expr] (and (disjunction? expr)
+                     (let [[arg1 arg2] (args expr)]
+                       (or (equal-expect-inv arg1 arg2)
+                           (equal-expect-inv arg2 arg1)))))
+     (fn [_ _] (const true))]
+
+    [(fn [expr] (is-atom? expr))
+     (fn [expr _] expr)]
+
+    [(fn [expr] (operation? expr))
+     (fn [expr _] (let [op (operation expr)
+                        args (args expr)]
+                    (apply op (map simplify args))))]))
+
+(defn simplify
+  [expr]
+  (translate-by-table expr simplify-table))
+
+(defn to-dnf
+  [expr]
+  (->>
+    expr
+    (recur-trans)
+    (provide-inversion-to-atoms)
+    (recur-distribution)
+    (simplify)))
+
+(defn signify-var
+  [expr var val]
+  {:pre [(variable? var)
+         (boolean? val)]}
+  (vars-to-values expr var val))
+
+(defn signify-var-with-dnf
+  [expr var val]
+  (to-dnf (vars-to-values expr var val)))

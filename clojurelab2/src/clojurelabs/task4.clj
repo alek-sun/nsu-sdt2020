@@ -81,14 +81,12 @@
             variable?)
    expr))
 
-(defn operation? [expr]
-  ((some-fn conjunction?
-            disjunction?
-            invert?)
-   expr))
-
-(defn operation [expr]
-  (when (operation? expr)
+(defn oper-type [expr]
+  (when
+    ((some-fn conjunction?
+                  disjunction?
+                  invert?)
+         expr)
     (cond
       (conjunction? expr) conjunction
       (disjunction? expr) disjunction
@@ -258,21 +256,42 @@
   [expr var val]
   (translate-by-table expr sign-table var val))
 
+(defn signify-var
+  [expr var val]
+  {:pre [(variable? var)
+         (boolean? val)]}
+  (vars-to-values expr var val))
+
+; Step 4: simplifying
+(declare simplify)
+
 (defn equal-expect-inv [e1 e2]
   (and (invert? e1)
        (let [[arg] (args e1)]
          (= arg e2))))
 
-; Step 4: simplifying
-(declare simplify)
-
 (def simplify-table
   (list
+    ; arg1 ^ false == false
+    [(fn [expr] (and (conjunction? expr)
+                     (let [[arg1 arg2] (args expr)]
+                       (or (= arg1 (const false))
+                           (= arg2 (const false))))))
+     (fn [_ _] (const false))]
+
     ; arg1 ^ arg1 == arg1
     [(fn [expr] (and (conjunction? expr)
                      (let [[arg1 arg2] (args expr)]
                        (= arg1 arg2))))
      (fn [expr _] (simplify (first (args expr))))]
+
+    ; arg1 v false == arg1
+    [(fn [expr] (and (disjunction? expr)
+                     (let [[arg1 arg2] (args expr)]
+                       (or (= arg1 (const false))
+                           (= arg2 (const false))))))
+     (fn [expr _] (let [[arg1 arg2] (args expr)]
+                    (simplify (if (= arg1 (const false)) arg2 arg1))))]
 
     ; arg1 v arg1 == arg1
     [(fn [expr] (and (disjunction? expr)
@@ -280,12 +299,6 @@
                        (= arg1 arg2))))
      (fn [expr _] (simplify (first (args expr))))]
 
-    ; arg1 ^ false == false
-    [(fn [expr] (and (conjunction? expr)
-                     (let [[arg1 arg2] (args expr)]
-                       (or (= arg1 (const false))
-                           (= arg2 (const false))))))
-     (fn [_ _] (const false))]
 
     ; arg1 ^ true == arg1
     [(fn [expr] (and (conjunction? expr)
@@ -295,13 +308,6 @@
      (fn [expr _] (let [[arg1 arg2] (args expr)]
                     (simplify (if (= arg1 (const true)) arg2 arg1))))]
 
-    ; arg1 v false == arg1
-    [(fn [expr] (and (disjunction? expr)
-                     (let [[arg1 arg2] (args expr)]
-                       (or (= arg1 (const false))
-                           (= arg2 (const false))))))
-     (fn [expr _] (let [[arg1 arg2] (args expr)]
-                    (simplify (if (= arg1 (const false)) arg2 arg1))))]
 
     ; arg1 v true == true
     [(fn [expr] (and (disjunction? expr)
@@ -317,20 +323,24 @@
                            (equal-expect-inv arg2 arg1)))))
      (fn [_ _] (const false))]
 
-    ; arg1 v !arg1 == true
+    ; arg1 v !arg1 / !arg1 v arg1== true
     [(fn [expr] (and (disjunction? expr)
                      (let [[arg1 arg2] (args expr)]
                        (or (equal-expect-inv arg1 arg2)
                            (equal-expect-inv arg2 arg1)))))
      (fn [_ _] (const true))]
 
+    [(fn [expr] ((some-fn conjunction?
+                          disjunction?
+                          invert?)
+                 expr))
+     (fn [expr _] (let [oper-type (oper-type expr)
+                        args (args expr)]
+                    (apply oper-type (map simplify args))))]
+
     [(fn [expr] (is-atom? expr))
      (fn [expr _] expr)]
-
-    [(fn [expr] (operation? expr))
-     (fn [expr _] (let [op (operation expr)
-                        args (args expr)]
-                    (apply op (map simplify args))))]))
+    ))
 
 (defn simplify
   [expr]
@@ -344,13 +354,3 @@
     (provide-inversion-to-atoms)
     (recur-distribution)
     (simplify)))
-
-(defn signify-var
-  [expr var val]
-  {:pre [(variable? var)
-         (boolean? val)]}
-  (vars-to-values expr var val))
-
-(defn signify-var-with-dnf
-  [expr var val]
-  (to-dnf (vars-to-values expr var val)))
